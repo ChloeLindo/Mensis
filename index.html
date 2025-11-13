@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mensis </title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* Define Custom Colors */
+        :root {
+            --bg-light: #fdeff2;
+            --bg-card: #fff0f5;
+            --accent-pink: #d55b89;
+            --button-hover: #e093af;
+            --text-dark: #333333;
+            --irregular-red: #cc0000;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: var(--bg-light);
+            color: var(--text-dark);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .header-bg { background-color: var(--bg-card); }
+        .custom-input {
+            border: none; outline: none; background-color: #f7eaf0; 
+            color: var(--accent-pink); font-weight: 600; padding: 0.75rem 1rem;
+            border-radius: 9999px; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.06); 
+            transition: box-shadow 0.2s, background-color 0.2s;
+        }
+        .custom-input:focus { background-color: #fff; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1), 0 0 0 2px var(--accent-pink); }
+
+        .custom-button {
+            background-color: var(--accent-pink); color: white; font-weight: 700; 
+            padding: 1rem 2.5rem; border-radius: 9999px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06);
+            transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s;
+            text-transform: uppercase;
+        }
+        .custom-button:hover { background-color: var(--button-hover); box-shadow: 0 6px 10px -1px rgba(0, 0, 0, 0.15); transform: translateY(-1px); }
+        .custom-button:active { transform: translateY(1px); box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.1); }
+        
+        .secondary-button {
+            background-color: #f7eaf0; 
+            color: var(--accent-pink); 
+            border: 1px solid var(--accent-pink);
+            font-weight: 700; 
+            padding: 1rem 2.5rem; border-radius: 9999px;
+            transition: background-color 0.2s, transform 0.1s, box-shadow 0.2s;
+            text-transform: uppercase;
+        }
+        .secondary-button:hover {
+            background-color: #fff;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .secondary-button:active { transform: translateY(1px); }
+
+        .symptom-button {
+            background-color: var(--bg-card); color: var(--accent-pink); border: 2px solid var(--accent-pink);
+            padding: 0.75rem 1.5rem; border-radius: 1.5rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
+            text-align: center;
+            user-select: none;
+        }
+        .symptom-button.selected {
+            background-color: var(--accent-pink); color: white; box-shadow: 0 4px 6px -1px rgba(213, 91, 137, 0.3);
+            transform: scale(1.03);
+        }
+        .symptom-button:not(.selected):hover { background-color: #f7eaf0; }
+
+        .card-container {
+            background-color: var(--bg-card); border-radius: 1.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            padding: 3rem; width: 100%; max-width: 900px;
+        }
+
+        .error-message { color: var(--irregular-red); font-weight: 600; text-align: center; margin-top: 1rem; }
+        
+        .logo-figure { position: relative; width: 40px; height: 40px; overflow: hidden; display: inline-block; vertical-align: middle; }
+        .logo-figure svg { position: absolute; top: -20px; left: -10px; width: 100px; height: 100px; }
+        
+        /* Utility for Doctor Cards */
+        .doctor-card {
+            background-color: #ffe8f0; 
+            border: 1px solid var(--accent-pink);
+            border-radius: 1rem; 
+            padding: 1.5rem;
+            text-align: left;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s;
+        }
+        .doctor-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(213, 91, 137, 0.1);
+        }
+        
+    </style>
+</head>
+
+<body class="flex flex-col p-4 sm:p-8">
+
+    <script>
+        // --- Core Application State & Initialization ---
+        const MS_PER_DAY = 1000 * 60 * 60 * 24;
+
+        // Helper to format Date object into DD-MM-YYYY for result display
+        function formatDisplayDate(date) {
+            const d = new Date(date);
+            let month = '' + (d.getMonth() + 1);
+            let day = '' + d.getDate();
+            const year = d.getFullYear();
+            // Pad month and day to 2 digits if necessary
+            if (month.length < 2) month = '0' + month;
+            if (day.length < 2) day = '0' + day;
+            
+            // Outputting DD-MM-YYYY format
+            return [day, month, year].join('-');
+        }
+        
+        // 1. Page 1 Functionality
+        function handleAuthAndStart() {
+            hideError('page1');
+            const nameInput = document.getElementById('name').value.trim();
+            const passwordInput = document.getElementById('password').value;
+            const ageInput = parseInt(document.getElementById('age').value);
+
+            if (!nameInput || !passwordInput || !ageInput || ageInput < 10) {
+                displayError('page1', 'Please enter a valid username, password, and age.');
+                return;
+            }
+            
+            const storedPassword = localStorage.getItem(`user_${nameInput}_password`);
+
+            if (storedPassword && storedPassword !== passwordInput) {
+                displayError('page1', 'Incorrect password for this username.');
+                return;
+            }
+
+            if (!storedPassword) {
+                localStorage.setItem(`user_${nameInput}_password`, passwordInput);
+            }
+            
+            localStorage.setItem('userName', nameInput);
+            localStorage.setItem('userAge', ageInput);
+            
+            showPage('page2');
+        }
+
+
+        // 2. Page 2 Validation and Analysis
+        window.validateAndContinue = function() {
+            hideError('page2');
+            
+            // Get the 4 required date pairs: [Start Date String, End Date String]
+            const dateInputs = [
+                [document.getElementById('date4').value, document.getElementById('endDate4').value], // Month 4 (Most recent)
+                [document.getElementById('date3').value, document.getElementById('endDate3').value],
+                [document.getElementById('date2').value, document.getElementById('endDate2').value],
+                [document.getElementById('date1').value, document.getElementById('endDate1').value], // Month 1 (Oldest)
+            ];
+
+            // 1. Validation: Check if all dates (8 total) are filled
+            const allFilled = dateInputs.every(pair => pair[0] && pair[1]);
+            if (!allFilled) {
+                displayError('page2', 'Please enter all eight dates (Start and Last Day) for the four periods.');
+                return;
+            }
+            
+            // 2. Data Structure: Convert input strings to objects containing Date objects
+            const cycleData = dateInputs.map(([startStr, endStr]) => {
+                // The input type="date" always provides YYYY-MM-DD internally, which is required for reliable Date parsing.
+                const start = new Date(startStr + 'T00:00:00');
+                const end = new Date(endStr + 'T00:00:00');
+
+                // Check 2a: Start Date must be before or same as End Date for the same period
+                if (start.getTime() > end.getTime()) {
+                    // Return temporary invalid object to fail next check
+                    return { start: null, end: null, startStr: startStr, endStr: endStr }; 
+                }
+
+                return { 
+                    start: start, 
+                    end: end, 
+                    startStr: startStr,
+                    endStr: endStr
+                };
+            });
+
+            // Check if all dates are valid Date objects and passed the Start <= End check
+            if (cycleData.some(d => !d.start || isNaN(d.start?.getTime()) || isNaN(d.end?.getTime()))) {
+                displayError('page2', 'One or more dates are invalid or incorrectly structured (Start Date must be on or before Last Day of Period). Please ensure dates are correctly selected.');
+                return;
+            }
+
+            // Check chronological order and non-overlap:
+            // cycleData is ordered [Period4, Period3, Period2, Period1] (Newest to Oldest)
+            for (let i = 0; i < cycleData.length - 1; i++) {
+                // Check 3a: Current period Start Date (i) must be AFTER previous period Start Date (i+1)
+                if (cycleData[i].start.getTime() <= cycleData[i+1].start.getTime()) {
+                    displayError('page2', 'Please ensure all periods are entered in correct chronological order (Newest to Oldest, i.e., Period 4 > Period 3 > Period 2 > Period 1).');
+                    return;
+                }
+                // Check 3b: Current period Start Date (i) must be strictly AFTER previous period End Date (i+1) to ensure no overlap
+                if (cycleData[i].start.getTime() <= cycleData[i+1].end.getTime()) {
+                    displayError('page2', 'Period start dates cannot overlap or be the same day as the end of the previous period. Please ensure there is at least one day gap.');
+                    return;
+                }
+            }
+
+            // 3. Calculation
+            const result = calculateCycleMetrics(cycleData);
+            localStorage.setItem('cycleMetrics', JSON.stringify(result));
+
+            // 4. Navigation
+            if (result.isRegular) {
+                populateRegularResults(result);
+                localStorage.removeItem('selectedSymptoms'); 
+                showPage('page4a');
+            } else {
+                showPage('page3'); 
+            }
+        }
+        
+        // 3. Cycle Calculation Logic
+        function calculateCycleMetrics(data) {
+            const intervals = [];
+            const durations = []; // Now calculated!
+            let isRegularInterval = true;
+            let isRegularDuration = true;
+            
+            // 1. Durations (Flow Length)
+            // data array is [P4, P3, P2, P1] (Newest to Oldest)
+            data.forEach(period => {
+                // Duration is End Date - Start Date + 1 day (since both are inclusive)
+                const durationMs = period.end.getTime() - period.start.getTime();
+                const durationDays = Math.round(durationMs / MS_PER_DAY) + 1;
+                durations.push(durationDays);
+
+                // Check for normal duration (3 to 7 days is typical)
+                if (durationDays < 3 || durationDays > 7) {
+                    isRegularDuration = false;
+                }
+            });
+
+            // 2. Intervals (Length of Cycle 1, 2, 3)
+            // Cycle interval is the gap between the start date of the current period and the start date of the previous period.
+            // data[i] is newer, data[i+1] is older
+            for (let i = 0; i < 3; i++) {
+                const interval = Math.round((data[i].start.getTime() - data[i+1].start.getTime()) / MS_PER_DAY);
+                intervals.push(interval);
+
+                // Check for irregularity (27 to 30 days is regular)
+                if (interval < 27 || interval > 30) {
+                    isRegularInterval = false;
+                }
+            }
+
+            // 3. Regularity Check (both interval length and flow duration must be regular)
+            const isRegular = isRegularInterval && isRegularDuration; 
+
+            // 4. Prediction
+            const totalIntervals = intervals.reduce((sum, val) => sum + val, 0);
+            const averageInterval = intervals.length > 0 ? totalIntervals / intervals.length : 28;
+            
+            // Prediction is based on the START date of the *most recent* period (data[0])
+            const predictedNextStartTimestamp = data[0].start.getTime() + (averageInterval * MS_PER_DAY);
+            const predictedNextStartDate = formatDisplayDate(new Date(predictedNextStartTimestamp));
+
+            return {
+                intervals: intervals,
+                // Reverse durations to match the display order (Duration 1 is the oldest period)
+                durations: durations.reverse(), 
+                isRegular: isRegular,
+                predictedNextStartDate: predictedNextStartDate
+            };
+        }
+        
+        // 4. Page 3 and 4 Logic (Symptom/Disorder Mapping)
+        const DISORDER_MAP = {
+            "Acne Flare-up": "Hormonal imbalance", "Back Pain": "Dysmenorrhea", "Bloating": "PMS", "Breast Tenderness": "PMS", "Cramps": "Dysmenorrhea", "Fatigue": "PMS", "Headache": "Hormonal migraine", "Mood Swings": "PMS", "Nausea": "Dysmenorrhea", "Acne Flare-up,Bloating": "Hormonal imbalance", "Acne Flare-up,Breast Tenderness": "Hormonal imbalance", "Acne Flare-up,Cramps": "Hormonal imbalance", "Acne Flare-up,Fatigue": "Hormonal imbalance", "Acne Flare-up,Headache": "Hormonal fluctuation", "Acne Flare-up,Mood Swings": "Hormonal imbalance", "Acne Flare-up,Nausea": "Hormonal imbalance", "Back Pain,Acne Flare-up": "Hormonal disorder", "Back Pain,Bloating": "PMS", "Back Pain,Breast Tenderness": "PMS", "Back Pain,Cramps": "Dysmenorrhea", "Back Pain,Fatigue": "Dysmenorrhea", "Back Pain,Headache": "Migraine", "Back Pain,Mood Swings": "PMS", "Back Pain,Nausea": "Dysmenorrhea", "Bloating,Breast Tenderness": "PMS", "Bloating,Cramps": "PMS", "Bloating,Fatigue": "PMS", "Bloating,Headache": "PMS", "Bloating,Mood Swings": "PMS", "Bloating,Nausea": "PMS", "Breast Tenderness,Cramps": "PMS", "Breast Tenderness,Fatigue": "PMS", "Breast Tenderness,Headache": "PMS", "Breast Tenderness,Mood Swings": "PMS", "Breast Tenderness,Nausea": "PMS", "Cramps,Fatigue": "Dysmenorrhea", "Cramps,Headache": "Dysmenorrhea", "Cramps,Mood Swings": "PMS", "Cramps,Nausea": "Dysmenorrhea", "Fatigue,Headache": "Migraine", "Fatigue,Mood Swings": "PMS", "Fatigue,Nausea": "Dysmenorrhea", "Headache,Mood Swings": "PMS", "Headache,Nausea": "Migraine", "Mood Swings,Nausea": "PMS", "Acne Flare-up,Bloating,Cramps": "PMS", "Acne Flare-up,Bloating,Mood Swings": "Hormonal imbalance", "Acne Flare-up,Bloating,Nausea": "Hormonal imbalance", "Acne Flare-up,Breast Tenderness,Bloating": "Hormonal imbalance", "Acne Flare-up,Breast Tenderness,Cramps": "PMS", "Acne Flare-up,Breast Tenderness,Fatigue": "Hormonal imbalance", "Acne Flare-up,Breast Tenderness,Headache": "Hormonal imbalance", "Acne Flare-up,Breast Tenderness,Mood Swings": "Hormonal imbalance", "Acne Flare-up,Cramps,Fatigue": "Dysmenorrhea", "Acne Flare-up,Cramps,Headache": "Hormonal imbalance", "Acne Flare-up,Cramps,Mood Swings": "Hormonal imbalance", "Acne Flare-up,Cramps,Nausea": "Hormonal imbalance", "Acne Flare-up,Fatigue,Headache": "Hormonal imbalance", "Acne Flare-up,Fatigue,Mood Swings": "Hormonal imbalance", "Acne Flare-up,Fatigue,Nausea": "Hormonal imbalance", "Acne Flare-up,Headache,Mood Swings": "Hormonal imbalance", "Acne Flare-up,Headache,Nausea": "Hormonal imbalance", "Acne Flare-up,Mood Swings,Nausea": "Hormonal imbalance", "Back Pain,Acne Flare-up,Bloating": "PCOS", "Back Pain,Acne Flare-up,Breast Tenderness": "Hormonal imbalance", "Back Pain,Acne Flare-up,Cramps": "hormonal Imbalance", "Back Pain,Acne Flare-up,Fatigue": "PCOS", "Back Pain,Acne Flare-up,Headache": "Hormonal imbalance", "Back Pain,Acne Flare-up,Mood Swings": "Hormonal imbalance", "Back Pain,Acne Flare-up,Nausea": "Hormonal imbalance", "Back Pain,Bloating,Cramps": "Dysmenorrhea", "Back Pain,Bloating,Fatigue": "Endometriosis", "Back Pain,Bloating,Headache": "PMS", "Back Pain,Bloating,Mood Swings": "PMS", "Back Pain,Bloating,Nausea": "Dysmenorrhea", "Back Pain,Breast Tenderness,Bloating": "PMS", "Back Pain,Breast Tenderness,Cramps": "Dysmenorrhea", "Back Pain,Breast Tenderness,Fatigue": "Dysmenorrhea", "Back Pain,Breast Tenderness,Headache": "Dysmenorrhea", "Back Pain,Breast Tenderness,Mood Swings": "PMS", "Back Pain,Breast Tenderness,Nausea": "Dysmenorrhea", "Back Pain,Cramps,Fatigue": "dysmenorrhea", "Back Pain,Cramps,Headache": "Dysmenorrhea", "Back Pain,Cramps,Mood Swings": "Dysmenorrhea", "Back Pain,Cramps,Nausea": "Dysmenorrhea", "Back Pain,Fatigue,Headache": "Dysmenorrhea", "Back Pain,Fatigue,Mood Swings": "PMDD", "Back Pain,Fatigue,Nausea": "Dysmenorrhea", "Back Pain,Headache,Mood Swings": "PMS", "Back Pain,Headache,Nausea": "Dysmenorrhea", "Back Pain,Mood Swings,Nausea": "PMS", "Bloating,Breast Tenderness,Cramps": "PMS", "Bloating,Breast Tenderness,Fatigue": "PMS", "Bloating,Breast Tenderness,Headache": "PMS", "Bloating,Breast Tenderness,Mood Swings": "PMS", "Bloating,Breast Tenderness,Nausea": "PMS", "Bloating,Cramps,Fatigue": "PMS", "Bloating,Cramps,Headache": "Dysmenorrhea", "Bloating,Cramps,Mood Swings": "PMS", "Bloating,Cramps,Nausea": "Dysmenorrhea", "Bloating,Fatigue,Headache": "PMS", "Bloating,Fatigue,Mood Swings": "PMS", "Bloating,Fatigue,Nausea": "PMS", "Bloating,Headache,Mood Swings": "PMS", "Bloating,Headache,Nausea": "PMS", "Bloating,Mood Swings,Nausea": "PMS", "Breast Tenderness,Cramps,Fatigue": "Dysmenorrhea", "Breast Tenderness,Cramps,Headache": "Dysmenorrhea", "Breast Tenderness,Cramps,Mood Swings": "PMS", "Breast Tenderness,Cramps,Nausea": "Dysmenorrhea", "Breast Tenderness,Fatigue,Headache": "PMS", "Breast Tenderness,Fatigue,Mood Swings": "PMS", "Breast Tenderness,Fatigue,Nausea": "PMS", "Breast Tenderness,Headache,Mood Swings": "PMS", "Breast Tenderness,Headache,Nausea": "PMS", "Breast Tenderness,Mood Swings,Nausea": "PMS", "Cramps,Fatigue,Headache": "Dysmenorrhea", "Cramps,Fatigue,Mood Swings": "PMS", "Cramps,Fatigue,Nausea": "Dysmenorrhea", "Cramps,Headache,Mood Swings": "PMS", "Cramps,Headache,Nausea": "Dysmenorrhea", "Cramps,Mood Swings,Nausea": "Dysmenorrhea", "Fatigue,Headache,Mood Swings": "PMS", "Fatigue,Headache,Nausea": "Migraine", "Fatigue,Mood Swings,Nausea": "PMS", "Headache,Mood Swings,Nausea": "PMS"
+        };
+        
+        function determinePossibleDisorder(selectedSymptoms) {
+            const relevantSymptoms = selectedSymptoms.filter(s => s !== 'Insomnia').sort();
+            
+            if (relevantSymptoms.length === 0) {
+                return "No specific symptoms logged, but cycle is irregular. Please consult a doctor.";
+            }
+            
+            const key = relevantSymptoms.join(',');
+            
+            const disorder = DISORDER_MAP[key];
+
+            if (disorder) {
+                return disorder.toUpperCase();
+            } else {
+                return "No direct match. Irregular cycle detected. Consult a healthcare professional.";
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const symptomGrid = document.getElementById('symptom-grid');
+            symptomGrid?.addEventListener('click', (event) => {
+                const button = event.target.closest('.symptom-button');
+                if (button) {
+                    const isSelected = button.classList.contains('selected');
+                    const selectedCount = document.querySelectorAll('.symptom-button.selected').length;
+                    
+                    if (!isSelected && selectedCount >= 3) {
+                        displayError('page3', 'You can select a maximum of 3 symptoms.');
+                        return;
+                    }
+                    
+                    button.classList.toggle('selected');
+                    hideError('page3'); 
+                }
+            });
+            checkSession(); 
+        });
+
+        function populateRegularResults(result) {
+            // Durations array is now [D1, D2, D3, D4] (Oldest to Newest)
+            const [d1, d2, d3, d4] = result.durations;
+            const intervalText = result.intervals.join(', ');
+
+            const previousSymptoms = localStorage.getItem('selectedSymptoms');
+            let disorderSuggestion = "N/A - Cycle is Regular";
+            
+            // Check if duration was irregular, even if interval was regular
+            if (!result.isRegular) {
+                disorderSuggestion = "Cycle duration is outside the 3-7 day range. Consult a healthcare professional.";
+            } else if (previousSymptoms) {
+                try {
+                    const symptoms = JSON.parse(previousSymptoms);
+                    if (symptoms.length > 0) {
+                        // Even with a regular cycle, suggest disorder based on logged symptoms
+                        const primaryDisorder = determinePossibleDisorder(symptoms);
+                        disorderSuggestion = `Symptoms detected: ${primaryDisorder}`;
+                    }
+                } catch (e) { /* ignore parse error */ }
+            }
+
+            document.getElementById('regular-next-date').textContent = result.predictedNextStartDate;
+            document.getElementById('regular-intervals-display').textContent = intervalText;
+            document.getElementById('duration-1').textContent = d1;
+            document.getElementById('duration-2').textContent = d2;
+            document.getElementById('duration-3').textContent = d3;
+            document.getElementById('duration-4').textContent = d4;
+            document.getElementById('regular-disorder-suggestion').textContent = disorderSuggestion;
+        }
+
+        function populateIrregularResults(metrics, disorderSuggestion) {
+            // Durations array is now [D1, D2, D3, D4] (Oldest to Newest)
+            const [d1, d2, d3, d4] = metrics.durations;
+            const intervalText = metrics.intervals.join(', ');
+
+            document.getElementById('irregular-next-date').textContent = metrics.predictedNextStartDate;
+            document.getElementById('irregular-intervals-display').textContent = intervalText;
+            document.getElementById('duration-1-irr').textContent = d1;
+            document.getElementById('duration-2-irr').textContent = d2;
+            document.getElementById('duration-3-irr').textContent = d3;
+            document.getElementById('duration-4-irr').textContent = d4;
+            document.getElementById('irregular-disorder-suggestion').textContent = disorderSuggestion;
+        }
+
+
+        function checkMyCycle() {
+            hideError('page3');
+            
+            const metricsJSON = localStorage.getItem('cycleMetrics');
+            if (!metricsJSON) {
+                    displayError('page3', 'Error: Cycle metrics are missing. Please return to the previous page (Page 2).');
+                    return;
+            }
+            const metrics = JSON.parse(metricsJSON);
+            
+            const selectedSymptoms = Array.from(document.querySelectorAll('.symptom-button.selected'))
+                .map(btn => btn.getAttribute('data-symptom'));
+
+            if (selectedSymptoms.length === 0) {
+                displayError('page3', 'Please select at least one symptom for the disorder screening.');
+                return;
+            }
+            if (selectedSymptoms.length > 3) {
+                displayError('page3', 'You can select a maximum of 3 symptoms.');
+                return;
+            }
+
+            localStorage.setItem('selectedSymptoms', JSON.stringify(selectedSymptoms));
+            const disorderSuggestion = determinePossibleDisorder(selectedSymptoms);
+            populateIrregularResults(metrics, disorderSuggestion);
+            showPage('page4b');
+        }
+
+        // --- SPA Management and Utilities ---
+        const PAGES = ['page1', 'page2', 'page3', 'page4a', 'page4b'];
+
+        function showPage(pageId) {
+            PAGES.forEach(id => document.getElementById(id)?.classList.add('hidden'));
+            document.getElementById(pageId)?.classList.remove('hidden');
+
+            const isPage1 = pageId === 'page1';
+            // FIX: Safely retrieve header here as it might not be loaded when the script first runs.
+            const header = document.getElementById('app-header');
+            
+            if (header) {
+                header.classList.toggle('hidden', isPage1);
+            }
+
+            document.body.classList.toggle('items-start', !isPage1);
+            document.body.classList.toggle('justify-center', isPage1);
+            if (!isPage1) updateUsernameDisplay();
+        }
+        
+        function goBack() {
+            const visiblePage = PAGES.find(id => !document.getElementById(id)?.classList.contains('hidden'));
+            
+            switch (visiblePage) {
+                case 'page2':
+                    showPage('page1');
+                    break;
+                case 'page3':
+                    showPage('page2'); 
+                    break;
+                case 'page4a':
+                    showPage('page2'); 
+                    break;
+                case 'page4b':
+                    showPage('page3');
+                    break;
+                default:
+                    console.warn("Cannot go back from the current page:", visiblePage);
+            }
+        }
+        
+        function goBackToSymptoms() {
+            showPage('page3');
+        }
+
+        function updateUsernameDisplay() {
+            const name = localStorage.getItem('userName') || 'GUEST';
+            document.getElementById('username-display').textContent = name.toUpperCase();
+        }
+
+        function displayError(pageId, message) {
+            const errorElement = document.getElementById(`${pageId}-error`);
+            errorElement.textContent = message;
+            errorElement.classList.remove('hidden');
+        }
+
+        function hideError(pageId) {
+            document.getElementById(`${pageId}-error`).classList.add('hidden');
+        }
+        
+        function checkSession() {
+            const userName = localStorage.getItem('userName');
+            if (userName) {
+                // If user is logged in, skip page 1
+                localStorage.removeItem('cycleMetrics');
+                localStorage.removeItem('selectedSymptoms');
+                showPage('page2'); 
+            } else {
+                showPage('page1');
+            }
+        }
+        
+        function resetApp() {
+            localStorage.removeItem('userName');
+            localStorage.removeItem('userAge');
+            localStorage.removeItem('cycleMetrics');
+            localStorage.removeItem('selectedSymptoms');
+            
+            document.getElementById('name').value = '';
+            document.getElementById('password').value = '';
+            document.getElementById('age').value = '';
+            
+            // Clear date inputs on reset
+            document.getElementById('date1').value = '';
+            document.getElementById('date2').value = '';
+            document.getElementById('date3').value = '';
+            document.getElementById('date4').value = '';
+            
+            document.getElementById('endDate1').value = '';
+            document.getElementById('endDate2').value = '';
+            document.getElementById('endDate3').value = '';
+            document.getElementById('endDate4').value = '';
+            
+            document.querySelectorAll('.symptom-button').forEach(btn => btn.classList.remove('selected'));
+            showPage('page1');
+        }
+
+    </script>
+
+
+    <!-- Main Container Wrapper -->
+    <div id="app-container" class="w-full max-w-6xl mx-auto flex flex-col items-center">
+
+        <!-- Header (Used on Pages 2, 3, 4A, 4B) -->
+        <header id="app-header" class="header-bg w-full fixed top-0 left-0 shadow-md py-3 px-6 sm:px-12 flex justify-between items-center z-10 hidden">
+            <div class="flex items-center space-x-2">
+                <div class="logo-figure">
+                    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <linearGradient id="pinkGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#ff69b4;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:var(--accent-pink);stop-opacity:1" />
+                            </linearGradient>
+                        </defs>
+                        <path d="M 50 10 C 20 10, 20 90, 50 90 C 80 90, 80 10, 50 10 Z" fill="url(#pinkGradient)"/>
+                        <circle cx="25" cy="25" r="5" fill="#fff" opacity="0.8"/>
+                        <circle cx="75" cy="25" r="5" fill="#fff" opacity="0.8"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-2xl font-bold text-gray-700">Mensis:</h1>
+                    <!-- UPDATED HEADER DESCRIPTION -->
+                    <p class="text-xs text-gray-500 hidden sm:block">A Symptom-Based Menstrual Health Tracker with Early Disorder Screening</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-2">
+                <span id="username-display" class="font-semibold text-base px-4 py-2 rounded-full border-2 border-dashed border-gray-400 text-gray-600 uppercase">USERNAME</span>
+            </div>
+        </header>
+
+
+        <!-- Page 1: User Information Page (Login/Registration) -->
+        <div id="page1" class="page-content flex flex-col items-center justify-center p-8 pt-20">
+            <div class="flex flex-col items-center mb-12">
+                <div style="position: relative; width: 180px; height: 180px; margin-bottom: 20px;">
+                    <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" style="position: absolute; top: -10px; left: -10px; width: 200px; height: 200px;">
+                        <defs>
+                            <linearGradient id="pinkGradientLarge" x1="0%" y1="0%" x2="100%" y2="100%">
+                                <stop offset="0%" style="stop-color:#ff69b4;stop-opacity:1" />
+                                <stop offset="100%" style="stop-color:var(--accent-pink);stop-opacity:1" />
+                            </linearGradient>
+                        </defs>
+                        <path d="M 50 10 C 20 10, 20 90, 50 90 C 80 90, 80 10, 50 10 Z" fill="url(#pinkGradientLarge)" transform="scale(0.8) translate(10, 10)"/>
+                        <g fill="#ffc0cb">
+                            <circle cx="80" cy="15" r="8"/>
+                            <circle cx="95" cy="30" r="5"/>
+                            <path d="M 90 10 C 100 0, 100 20, 90 30 Z" fill="var(--accent-pink)"/>
+                        </g>
+                    </svg>
+                </div>
+                <!-- UPDATED PAGE 1 DESCRIPTION -->
+                <h1 class="text-5xl font-extrabold text-gray-700 mt-2" style="color: var(--accent-pink);"><strong>Mensis:</strong></h1>
+                <p class="text-lg text-gray-500 text-center font-semibold max-w-sm mb-4">A Symptom-Based Menstrual Health Tracker with Early Disorder Screening</p>
+                <p class="text-base text-gray-500">Log in or register to begin your assessment.</p>
+            </div>
+
+            <div class="w-full max-w-sm">
+                <div class="mb-4">
+                    <label for="name" class="block text-lg font-bold mb-2" style="color: var(--accent-pink);">USERNAME:</label>
+                    <input type="text" id="name" placeholder="Enter your unique username" class="custom-input w-full" required>
+                </div>
+                <div class="mb-4">
+                    <label for="password" class="block text-lg font-bold mb-2" style="color: var(--accent-pink);">PASSWORD:</label>
+                    <input type="password" id="password" placeholder="Enter your secure password" class="custom-input w-full" required>
+                </div>
+                <div class="mb-10">
+                    <label for="age" class="block text-lg font-bold mb-2" style="color: var(--accent-pink);">AGE:</label>
+                    <input type="number" id="age" placeholder="Enter your age" class="custom-input w-full" required min="10" max="100">
+                </div>
+            </div>
+
+            <button onclick="handleAuthAndStart()" class="custom-button">START ASSESSMENT</button>
+            <p id="page1-error" class="error-message hidden"></p>
+        </div>
+
+        <!-- Page 2: Cycle History Input Page (MANUAL DATES) -->
+        <div id="page2" class="page-content hidden w-full mt-20">
+            <div class="card-container text-center">
+                <h2 class="text-3xl font-bold mb-6" style="color: var(--accent-pink);">ENTER YOUR LAST 4 PERIOD DATES</h2>
+                
+                <p class="text-gray-500 mb-8 text-sm max-w-lg mx-auto">
+                    Please enter the <span class="font-bold">first day</span> and <span class="font-bold">last day</span> of your last four menstrual periods, from newest (4) to oldest (1). The results will be displayed in the <span class="font-bold">DD-MM-YYYY</span> format.
+                </p>
+
+                <div class="w-full max-w-xl mx-auto grid grid-cols-1 gap-8">
+                    
+                    <!-- Period 4 (Most Recent) -->
+                    <div class="p-4 header-bg rounded-xl shadow-inner border border-pink-200">
+                        <h3 class="text-xl font-bold text-gray-700 mb-4" style="color: var(--accent-pink);">4. Most Recent Period</h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <!-- Start Date -->
+                            <div class="flex flex-col text-left">
+                                <label for="date4" class="block text-sm font-bold mb-1 text-gray-600">Start Date:</label>
+                                <input type="date" id="date4" class="custom-input w-full" required>
+                            </div>
+                            <!-- End Date (NEW) -->
+                            <div class="flex flex-col text-left">
+                                <label for="endDate4" class="block text-sm font-bold mb-1 text-gray-600">Last Day of Period:</label>
+                                <input type="date" id="endDate4" class="custom-input w-full" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Period 3 -->
+                    <div class="p-4 header-bg rounded-xl shadow-inner border border-pink-200">
+                        <h3 class="text-xl font-bold text-gray-700 mb-4" style="color: var(--accent-pink);">3. Second Most Recent Period</h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <!-- Start Date -->
+                            <div class="flex flex-col text-left">
+                                <label for="date3" class="block text-sm font-bold mb-1 text-gray-600">Start Date:</label>
+                                <input type="date" id="date3" class="custom-input w-full" required>
+                            </div>
+                            <!-- End Date (NEW) -->
+                            <div class="flex flex-col text-left">
+                                <label for="endDate3" class="block text-sm font-bold mb-1 text-gray-600">Last Day of Period:</label>
+                                <input type="date" id="endDate3" class="custom-input w-full" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Period 2 -->
+                    <div class="p-4 header-bg rounded-xl shadow-inner border border-pink-200">
+                        <h3 class="text-xl font-bold text-gray-700 mb-4" style="color: var(--accent-pink);">2. Third Most Recent Period</h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <!-- Start Date -->
+                            <div class="flex flex-col text-left">
+                                <label for="date2" class="block text-sm font-bold mb-1 text-gray-600">Start Date:</label>
+                                <input type="date" id="date2" class="custom-input w-full" required>
+                            </div>
+                            <!-- End Date (NEW) -->
+                            <div class="flex flex-col text-left">
+                                <label for="endDate2" class="block text-sm font-bold mb-1 text-gray-600">Last Day of Period:</label>
+                                <input type="date" id="endDate2" class="custom-input w-full" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Period 1 (Oldest) -->
+                    <div class="p-4 header-bg rounded-xl shadow-inner border border-pink-200">
+                        <h3 class="text-xl font-bold text-gray-700 mb-4" style="color: var(--accent-pink);">1. Oldest Period</h3>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <!-- Start Date -->
+                            <div class="flex flex-col text-left">
+                                <label for="date1" class="block text-sm font-bold mb-1 text-gray-600">Start Date:</label>
+                                <input type="date" id="date1" class="custom-input w-full" required>
+                            </div>
+                            <!-- End Date (NEW) -->
+                            <div class="flex flex-col text-left">
+                                <label for="endDate1" class="block text-sm font-bold mb-1 text-gray-600">Last Day of Period:</label>
+                                <input type="date" id="endDate1" class="custom-input w-full" required>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <p id="page2-error" class="error-message hidden"></p>
+
+                <div class="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-6 mt-12">
+                    <button onclick="goBack()" class="secondary-button">GO BACK</button>
+                    <button onclick="validateAndContinue()" class="custom-button">ANALYZE CYCLE</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page 3: Irregular Cycle & Symptom Selection -->
+        <div id="page3" class="page-content hidden w-full mt-20">
+            <div class="card-container text-center">
+                <div class="flex flex-col items-center mb-6">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-yellow-500 mb-3" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" style="color: var(--irregular-red);"/>
+                    </svg>
+                    <h2 class="text-3xl font-bold mb-2" style="color: var(--irregular-red);">IRREGULARITY DETECTED</h2>
+                    <p class="text-lg text-gray-700 max-w-xl">
+                        Your last 3 cycle intervals (between period starts) were not consistently 27-30 days, OR your flow duration was outside the normal 3-7 day range.
+                    </p>
+                    <p class="text-gray-500 mt-4 max-w-xl">
+                        To help screen for common disorders like PCOS or Endometriosis, please select up to 3 symptoms you commonly experience just before or during your period.
+                    </p>
+                </div>
+                
+                <!-- Symptom Grid -->
+                <div id="symptom-grid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mt-8">
+                    <button class="symptom-button" data-symptom="Cramps">Severe Cramps</button>
+                    <button class="symptom-button" data-symptom="Bloating">Bloating</button>
+                    <button class="symptom-button" data-symptom="Mood Swings">Mood Swings</button>
+                    <button class="symptom-button" data-symptom="Fatigue">Extreme Fatigue</button>
+                    <button class="symptom-button" data-symptom="Acne Flare-up">Acne Flare-up</button>
+                    <button class="symptom-button" data-symptom="Headache">Migraine/Headache</button>
+                    <button class="symptom-button" data-symptom="Breast Tenderness">Breast Tenderness</button>
+                    <button class="symptom-button" data-symptom="Back Pain">Intense Back Pain</button>
+                    <button class="symptom-button" data-symptom="Nausea">Nausea/Vomiting</button>
+                    <button class="symptom-button" data-symptom="Insomnia">Insomnia</button>
+                </div>
+                
+                <p id="page3-error" class="error-message hidden"></p>
+                
+                <div class="flex flex-col sm:flex-row justify-center space-y-4 sm:space-y-0 sm:space-x-6 mt-12">
+                    <button onclick="goBack()" class="secondary-button">CHANGE DATES</button>
+                    <button onclick="checkMyCycle()" class="custom-button">SCREEN MY CYCLE</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Page 4A: Regular Results -->
+        <div id="page4a" class="page-content hidden w-full mt-20">
+            <div class="card-container text-center">
+                <h2 class="text-4xl font-extrabold mb-4" style="color: var(--accent-pink);">Cycle Status: REGULAR</h2>
+                <p class="text-xl text-gray-700 mb-8">Based on your last four periods, your cycle is classified as regular!</p>
+
+                <div class="bg-green-50 p-6 rounded-xl border-4 border-green-300 mb-8 max-w-md mx-auto">
+                    <p class="text-lg font-bold text-green-700">PREDICTED NEXT START DATE:</p>
+                    <p id="regular-next-date" class="text-4xl font-extrabold text-green-900 mt-1">--/--/----</p>
+                    <p class="text-sm text-green-600 mt-2">Always consult a doctor if prediction is consistently inaccurate.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+                    <!-- Cycle Metrics -->
+                    <div class="bg-gray-50 p-5 rounded-lg border border-gray-200">
+                        <h3 class="text-xl font-bold mb-3 text-gray-800">CYCLE LENGTH (Intervals)</h3>
+                        <p class="text-gray-600">These are the number of days between the start of each period:</p>
+                        <p id="regular-intervals-display" class="text-2xl font-mono text-green-600 mt-2">--, --, -- Days</p>
+                        <p class="text-sm text-gray-500 mt-2">All intervals were between 27 and 30 days.</p>
+                    </div>
+                    
+                    <!-- Flow Metrics -->
+                    <div class="bg-gray-50 p-5 rounded-lg border border-gray-200">
+                        <h3 class="text-xl font-bold mb-3 text-gray-800">PERIOD DURATION (Flow Length)</h3>
+                        <p class="text-gray-600">The length of your flow (days) for each period:</p>
+                        <ul class="list-disc list-inside mt-2 space-y-1">
+                            <li class="font-bold text-sm">Oldest (1): <span id="duration-1" class="text-green-600">4</span> days</li>
+                            <li class="font-bold text-sm">Period (2): <span id="duration-2" class="text-green-600">4</span> days</li>
+                            <li class="font-bold text-sm">Period (3): <span id="duration-3" class="text-green-600">4</span> days</li>
+                            <li class="font-bold text-sm">Newest (4): <span id="duration-4" class="text-green-600">4</span> days</li>
+                        </ul>
+                        <p class="text-sm text-gray-500 mt-2">All flow durations were between 3 and 7 days.</p>
+                    </div>
+
+                    <!-- Disorder Summary -->
+                    <div class="md:col-span-2 doctor-card mt-4">
+                        <h3 class="text-xl font-bold text-gray-800">DISORDER SCREENING SUMMARY</h3>
+                        <p class="text-base text-gray-600 mt-2">Since your cycle is regular, significant underlying disorders are less likely. However, if you experience strong symptoms, consider consultation.</p>
+                        <p class="text-lg font-bold mt-3" style="color: var(--accent-pink);">Initial Suggestion:</p>
+                        <p id="regular-disorder-suggestion" class="text-xl font-extrabold text-gray-900 mt-1">N/A - Cycle is Regular</p>
+                    </div>
+                </div>
+
+                <!-- New: Tips & Trends Section -->
+                <div class="md:col-span-2 mt-8 p-6 bg-purple-50 rounded-xl border-4 border-purple-300 text-left">
+                    <h3 class="text-xl font-bold mb-3 text-purple-800">✨ Mensis Trends & Tips</h3>
+                    <ul class="list-disc list-outside ml-5 text-gray-700 space-y-2">
+                        <li>You’re doing great! Keep tracking your cycle regularly.</li>
+                        <li>Eat balanced meals and stay hydrated — your body will thank you.</li>
+                        <li>Try light exercise or yoga to keep cramps away.</li>
+                        <li>Manage stress with rest and relaxation.</li>
+                        <li>Watch for small changes — every cycle tells a story.</li>
+                        <li>Use comfy, breathable underwear and stay fresh.</li>
+                        <li>Learn about your cycle phases — knowing them helps you plan better.</li>
+                        <li>Keep the conversation about periods open — it’s normal and healthy!</li>
+                    </ul>
+                </div>
+                
+                <!-- New: Doctor Recommendations Section -->
+                <h3 class="text-3xl font-bold mt-12 mb-6" style="color: var(--accent-pink);">Recommended Physicians (OB/GYN)</h3>
+                <p class="text-sm text-gray-500 mb-6">For your regular check-ups, consider contacting one of these specialists in the Batangas area.</p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+                    
+                    <!-- Dr. Elnora Macatangay -->
+                    <div class="doctor-card">
+                        <h4 class="text-lg font-bold" style="color: var(--accent-pink);">Dr. Elnora Macatangay</h4>
+                        <p class="text-sm text-gray-700 font-bold">Specialization: Obstetrician-Gynecologist (OB/GYN)</p>
+                        <p class="text-xs text-gray-500 mt-1">Clinic: Batangas Healthcare Specialists Medical Center</p>
+                        <p class="text-xs text-gray-500">Address: Diversion Road, Barangay Alangilan, Batangas City, 4200 Batangas</p>
+                        <p class="text-xs text-gray-500">Contact: (043) 403 8642 | Hours: Mon - Sun, Open 24 Hours</p>
+                        <p class="text-xs text-green-700 font-bold mt-2">Rating: ⭐ 3.1 (34 reviews)</p>
+                    </div>
+
+                    <!-- Dr. Honorata Lalaine Burog -->
+                    <div class="doctor-card">
+                        <h4 class="text-lg font-bold" style="color: var(--accent-pink);">Dr. Honorata Lalaine Burog, FPOGS, FPSSTD</h4>
+                        <p class="text-sm text-gray-700 font-bold">Specialization: Obstetrics and Gynecology (OB/GYN)</p>
+                        <p class="text-xs text-gray-500 mt-1">Clinic: Burog, dr. Honorata Lalaine P. Clinic</p>
+                        <p class="text-xs text-gray-500">Address: ObGyn Clinic, Caedo Citimart Plaza, Batangas City, Batangas</p>
+                        <p class="text-xs text-gray-500">Contact: (043) 723 9301 | Hours: Wed - Sat, 9AM to 2PM (Face to face or online)</p>
+                        <p class="text-xs text-green-700 font-bold mt-2">Rating: ⭐ 4.5 (2 reviews)</p>
+                    </div>
+
+                    <!-- Dr. Emma Panaligan -->
+                    <div class="doctor-card">
+                        <h4 class="text-lg font-bold" style="color: var(--accent-pink);">Dr. Emma Panaligan, FPOGS, FPSUOG</h4>
+                        <p class="text-sm text-gray-700 font-bold">Specialization: Obstetrics and Gynecology (OBGYN)</p>
+                        <p class="text-xs text-gray-500 mt-1">Clinic: Panaligan OB-Gyne Ultrasound Clinic</p>
+                        <p class="text-xs text-gray-500">Address: 42 P.Prieto, Poblacion, Batangas City, 4200 Batangas</p>
+                        <p class="text-xs text-gray-500">Contact: (043) 723 3011 | Hours: Mon - Sat, 9AM to 4PM</p>
+                        <p class="text-xs text-red-700 font-bold mt-2">Rating: ⭐ No reviews available</p>
+                    </div>
+
+                    <!-- Dr. Violeta C. Ilagan -->
+                    <div class="doctor-card">
+                        <h4 class="text-lg font-bold" style="color: var(--accent-pink);">Dr. Violeta C. Ilagan</h4>
+                        <p class="text-sm text-gray-700 font-bold">Specialization: Obstetrics and Gynecology</p>
+                        <p class="text-xs text-gray-500 mt-1">Clinic: Bauan Doctors General Hospital</p>
+                        <p class="text-xs text-gray-500">Address: F. Mangobos Street Cor. Tano Rd. Bauan, Batangas</p>
+                        <p class="text-xs text-gray-500">Contact: (043) 980 7484 | Hours: No schedule available (Face-to-Face Consultation)</p>
+                        <p class="text-xs text-green-700 font-bold mt-2">Rating: ⭐ 4.3 (3 reviews)</p>
+                    </div>
+
+                    <!-- Dr. Jan Sandoval -->
+                    <div class="doctor-card md:col-span-2">
+                        <h4 class="text-lg font-bold" style="color: var(--accent-pink);">Dr. Jan Sandoval</h4>
+                        <p class="text-sm text-gray-700 font-bold">Specialization: Obstetrics and Gynecology</p>
+                        <p class="text-xs text-gray-500 mt-1">Clinic: San Antonio Life Care Hospital</p>
+                        <p class="text-xs text-gray-500">Address: San Pascual, Batangas</p>
+                        <p class="text-xs text-gray-500">Contact: 0977 850 8853 | Hours: Mon - Sat: 2:30-5:00PM, Wed: 10AM-12PM</p>
+                        <p class="text-xs text-red-700 font-bold mt-2">Rating: ⭐ No reviews available</p>
+                    </div>
+                </div>
+
+                <div class="mt-10">
+                    <button onclick="resetApp()" class="custom-button">START NEW ASSESSMENT</button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Page 4B: Irregular Results -->
+        <div id="page4b" class="page-content hidden w-full mt-20">
+            <div class="card-container text-center">
+                <h2 class="text-4xl font-extrabold mb-4" style="color: var(--irregular-red);">Cycle Status: IRREGULAR</h2>
+                <p class="text-xl text-gray-700 mb-8">Irregularity was detected either in the interval length (cycle days) or flow duration (period days). Consult a healthcare professional.</p>
+
+                <!-- NEW: DISCALIMER BANNER -->
+                <div class="bg-yellow-100 p-4 rounded-xl border-4 border-yellow-400 mb-8 max-w-xl mx-auto text-left">
+                    <p class="text-lg font-bold text-yellow-800">⚠️ IMPORTANT HEALTH DISCLAIMER</p>
+                    <p class="text-sm text-yellow-700 mt-1">The disorder screening and cycle analysis provided here are for informational purposes only and are based on self-reported data and generalized symptom patterns. This information may or may not be accurate. <span class="font-bold">It is not a medical diagnosis.</span> Always consult a certified <span class="font-bold">Obstetrician-Gynecologist (OB/GYN)</span> or healthcare provider for any health concerns or before making any medical decisions.</p>
+                </div>
+
+                <div class="bg-red-50 p-6 rounded-xl border-4 border-red-300 mb-8 max-w-md mx-auto">
+                    <p class="text-lg font-bold text-red-700">NEXT ESTIMATED START DATE (Based on Average):</p>
+                    <p id="irregular-next-date" class="text-4xl font-extrabold text-red-900 mt-1">--/--/----</p>
+                    <p class="text-sm text-red-600 mt-2">NOTE: This prediction is highly unreliable due to irregularity.</p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+                    <!-- Cycle Metrics -->
+                    <div class="bg-gray-50 p-5 rounded-lg border border-gray-200">
+                        <h3 class="text-xl font-bold mb-3 text-gray-800">CYCLE LENGTH (Intervals)</h3>
+                        <p class="text-gray-600">These are the number of days between the start of each period:</p>
+                        <p id="irregular-intervals-display" class="text-2xl font-mono text-red-600 mt-2">--, --, -- Days</p>
+                        <p class="text-sm text-gray-500 mt-2">Note the variability (regular range is 27-30 days).</p>
+                    </div>
+                    
+                    <!-- Flow Metrics -->
+                    <div class="bg-gray-50 p-5 rounded-lg border border-gray-200">
+                        <h3 class="text-xl font-bold mb-3 text-gray-800">PERIOD DURATION (Flow Length)</h3>
+                        <p class="text-gray-600">The length of your flow (days) for each period:</p>
+                        <ul class="list-disc list-inside mt-2 space-y-1">
+                            <li class="font-bold text-sm">Oldest (1): <span id="duration-1-irr" class="text-red-600">4</span> days</li>
+                            <li class="font-bold text-sm">Period (2): <span id="duration-2-irr" class="text-red-600">4</span> days</li>
+                            <li class="font-bold text-sm">Period (3): <span id="duration-3-irr" class="text-red-600">4</span> days</li>
+                            <li class="font-bold text-sm">Newest (4): <span id="duration-4-irr" class="text-red-600">4</span> days</li>
+                        </ul>
+                        <p class="text-sm text-gray-500 mt-2">Normal flow duration is 3-7 days. Check for durations outside this range.</p>
+                    </div>
+                    
+                    <!-- Disorder Summary -->
+                    <div class="md:col-span-2 doctor-card mt-4">
+                        <h3 class="text-xl font-bold text-gray-800">DISORDER SCREENING RESULT (Symptoms + Irregularity)</h3>
+                        <p class="text-lg font-bold mt-3" style="color: var(--accent-pink);">Possible Association:</p>
+                        <p id="irregular-disorder-suggestion" class="text-2xl font-extrabold text-gray-900 mt-1">IRREGULAR CYCLE DETECTED. CONSULT A DOCTOR.</p>
+                    </div>
+                </div>
+
+                <!-- NEW: Tips for Irregularity Section -->
+                <div class="md:col-span-2 mt-8 p-6 bg-blue-50 rounded-xl border-4 border-blue-300 text-left">
+                    <h3 class="text-xl font-bold mb-3 text-blue-800">🌱 Tips for Addressing Irregularity</h3>
+                    <ul class="list-disc list-outside ml-5 text-gray-700 space-y-2">
+                        <li>Prioritize rest and stress management: Lack of sleep and high stress levels can affect hormone production and menstrual regularity. Try relaxation methods like deep breathing, journaling, or mindfulness exercises.</li>
+                        <li>Engage in moderate physical activity: Light to moderate exercise such as yoga, walking, or stretching can help regulate hormones, improve blood circulation, and ease common menstrual symptoms.</li>
+                        <li>Stay hydrated and mindful of your diet: Drinking enough water and reducing caffeine or processed foods can help manage bloating and fatigue. Include iron-rich and high-fiber foods to support your energy levels and cycle health.</li>
+                        <li>Seek emotional support when needed: Mood changes are common during hormonal fluctuations. Talking to trusted friends, family, or counselors can help relieve emotional stress.</li>
+                        <li>Practice good hygiene: Change pads or tampons regularly, avoid using overly scented products, and wear breathable clothing to prevent irritation or infection.</li>
+                        <li>Pay attention to recurring symptoms and seek professional care: Keep track of any repeating discomforts such as prolonged cramps, skipped periods, or heavy bleeding. It’s best to consult a healthcare professional for accurate diagnosis and safe, effective treatment.</li>
+                    </ul>
+                </div>
+                
+                <!-- NEW: Doctor Recommendations Section (Same as 4A) -->
+                <h3 class="text-3xl font-bold mt-12 mb-6" style="color: var(--accent-pink);">Recommended Physicians (OB/GYN)</h3>
+                <p class="text-sm text-gray-500 mb-6">For accurate diagnosis and treatment, it is highly recommended to consult one of these specialists in the Batangas area.</p>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-left">
+                    
+                    <!-- Dr. Elnora Macatangay -->
+                    <div class="doctor-card">
+                        <h4 class="text-lg font-bold" style="color: var(--accent-pink);">Dr. Elnora Macatangay</h4>
+                        <p class="text-sm text-gray-700 font-bold">Specialization: Obstetrician-Gynecologist (OB/GYN)</p>
+                        <p class="text-xs text-gray-500 mt-1">Clinic: Batangas Healthcare Specialists Medical Center</p>
+                        <p class="text-xs text-gray-500">Address: Diversion Road, Barangay Alangilan, Batangas City, 4200 Batangas</p>
+                        <p class="text-xs text-gray-500">Contact: (043) 403 8642 | Hours: Mon - Sun, Open 24 Hours</p>
+                        <p class="text-xs text-green-700 font-bold mt-2">Rating: ⭐ 3.1 (34 reviews)</p>
+                    </div>
+
+                    <!-- Dr. Honorata Lalaine Burog -->
+                    <div class="doctor-card">
+                        <h4 class="text-lg font-bold" style="color: var(--accent-pink);">Dr. Honorata Lalaine Burog, FPOGS, FPSSTD</h4>
+                        <p class="text-sm text-gray-700 font-bold">Specialization: Obstetrics and Gynecology (OB/GYN)</p>
+                        <p class="text-xs text-gray-500 mt-1">Clinic: Burog, dr. Honorata Lalaine P. Clinic</p>
+                        <p class="text-xs text-gray-500">Address: ObGyn Clinic, Caedo Citimart Plaza, Batangas City, Batangas</p>
+                        <p class="text-xs text-gray-500">Contact: (043) 723 9301 | Hours: Wed - Sat, 9AM to 2PM (Face to face or online)</p>
+                        <p class="text-xs text-green-700 font-bold mt-2">Rating: ⭐ 4.5 (2 reviews)</p>
+                    </div>
+
+                    <!-- Dr. Emma Panaligan -->
+                    <div class="doctor-card">
+                        <h4 class="text-lg font-bold" style="color: var(--accent-pink);">Dr. Emma Panaligan, FPOGS, FPSUOG</h4>
+                        <p class="text-sm text-gray-700 font-bold">Specialization: Obstetrics and Gynecology (OBGYN)</p>
+                        <p class="text-xs text-gray-500 mt-1">Clinic: Panaligan OB-Gyne Ultrasound Clinic</p>
+                        <p class="text-xs text-gray-500">Address: 42 P.Prieto, Poblacion, Batangas City, 4200 Batangas</p>
+                        <p class="text-xs text-gray-500">Contact: (043) 723 3011 | Hours: Mon - Sat, 9AM to 4PM</p>
+                        <p class="text-xs text-red-700 font-bold mt-2">Rating: ⭐ No reviews available</p>
+                    </div>
+
+                    <!-- Dr. Violeta C. Ilagan -->
+                    <div class="doctor-card">
+                        <h4 class="text-lg font-bold" style="color: var(--accent-pink);">Dr. Violeta C. Ilagan</h4>
+                        <p class="text-sm text-gray-700 font-bold">Specialization: Obstetrics and Gynecology</p>
+                        <p class="text-xs text-gray-500 mt-1">Clinic: Bauan Doctors General Hospital</p>
+                        <p class="text-xs text-gray-500">Address: F. Mangobos Street Cor. Tano Rd. Bauan, Batangas</p>
+                        <p class="text-xs text-gray-500">Contact: (043) 980 7484 | Hours: No schedule available (Face-to-Face Consultation)</p>
+                        <p class="text-xs text-green-700 font-bold mt-2">Rating: ⭐ 4.3 (3 reviews)</p>
+                    </div>
+
+                    <!-- Dr. Jan Sandoval -->
+                    <div class="doctor-card md:col-span-2">
+                        <h4 class="text-lg font-bold" style="color: var(--accent-pink);">Dr. Jan Sandoval</h4>
+                        <p class="text-sm text-gray-700 font-bold">Specialization: Obstetrics and Gynecology</p>
+                        <p class="text-xs text-gray-500 mt-1">Clinic: San Antonio Life Care Hospital</p>
+                        <p class="text-xs text-gray-500">Address: San Pascual, Batangas</p>
+                        <p class="text-xs text-gray-500">Contact: 0977 850 8853 | Hours: Mon - Sat: 2:30-5:00PM, Wed: 10AM-12PM</p>
+                        <p class="text-xs text-red-700 font-bold mt-2">Rating: ⭐ No reviews available</p>
+                    </div>
+                </div>
+
+                <div class="mt-10">
+                    <button onclick="goBackToSymptoms()" class="secondary-button">RE-CHECK SYMPTOMS</button>
+                    <button onclick="resetApp()" class="custom-button ml-4">START NEW ASSESSMENT</button>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</body>
+</html>
